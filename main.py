@@ -12,9 +12,11 @@ import numpy as np
 import statistics
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from textblob import TextBlob
+from textblob.sentiments import NaiveBayesAnalyzer
+
 
 import pandas as pd
-
 
 def simple_search(query, num_results):
     results = search(query, num_results=num_results, advanced=True)
@@ -44,7 +46,7 @@ def save_to_file(snippets, filename):
 
 # Load
 def load_from_file(filename):
-    with open(filename, "r") as file:
+    with open(filename, "r", encoding='utf-8') as file:
         snippets = file.read().splitlines()
     return snippets
 
@@ -63,7 +65,12 @@ def string_matching(snippets):
     return exact_matches, ratios
 
 # Sentiment polarity
-
+def sentiment_polarity(snippets):
+    sentiment_polarities = []
+    for snippet in snippets:
+        polarity = TextBlob(snippet, analyzer=NaiveBayesAnalyzer()).polarity
+        sentiment_polarities.append(polarity)
+    return sentiment_polarities
 
 # Wordcloud
 def create_wordcloud(snippets):
@@ -79,29 +86,24 @@ def named_entity_matching(snippets):
         doc = nlp(snippet)
         for ent in doc.ents:
             named_entities += ent.text
-        all_named_entities.append(named_entities.rstrip())
+        if named_entities != "":
+            all_named_entities.append(named_entities.rstrip())
 
-    unique_index_pair_list = itertools.combinations(range(0,len(all_named_entities)), 2)
+    return string_matching(all_named_entities)
 
-    exact_matches = 0
-    ratios = []
-    for i, j in unique_index_pair_list:
-        ratio = fuzz.ratio(all_named_entities[i], all_named_entities[j])
-        if ratio == 100:
-            exact_matches += 1
-        ratios.append(ratio)
-        
-    return exact_matches, ratios
-
-def create_plots(tab, data, title):
+def create_plots(tab, data, title1, title2, xlabel, ylabel):
     for plot_num in range(2):
-        fig = Figure(figsize=(4, 3), dpi=100)
+        fig = Figure(figsize=(3, 2), dpi=100)
         ax = fig.add_subplot(111)
-        ax.set_title(title)
-        ax.set_xlabel("X-axis")
-        ax.set_ylabel("Y-axis")
+        if plot_num == 0:
+            ax.set_title(title1)
+        elif plot_num == 1:
+            ax.set_title(title2)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
         y = data[plot_num]
         x = [i for i in range(10, 101, 10)]
+        ax.set_xticks(x)
         ax.plot(x, y, label="Data")
         ax.legend()
         canvas = FigureCanvasTkAgg(fig, master=tab)
@@ -109,10 +111,24 @@ def create_plots(tab, data, title):
         canvas_widget.pack(fill=tk.BOTH, expand=True)
         
 def generate_data(num_results, query):
-    data = simple_search(query, num_results)
     snippets = []
+    
+    if local_data_checkbox_var.get():
+        if "site" in query:
+            filename = "snippets2.txt"
+        else:
+            filename = "snippets1.txt"
+        
+        data = load_from_file(filename)
+    else:
+        print("Using search data")
+        data = simple_search(query, num_results)
+
     for i, result in enumerate(data):
-        snippets.append(result.description)
+        if local_data_checkbox_var.get():
+            snippets.append(result)
+        else:
+            snippets.append(result.description)
         if i >= num_results-1:
             break
 
@@ -121,34 +137,61 @@ def generate_data(num_results, query):
     V1_all = []
     V2_all = []
     V3_all = []
+    V4_all = []
+    V5_all = []
 
     for i in range(10,110,10):
         V1 = 0
         V2 = 0
         V3 = 0
+        V4 = 0
+        V5 = 0
 
-        V1, ratios = string_matching(cleaned[0:i])
+        if named_entity_checkbox_var.get():
+            V1, ratios = named_entity_matching(cleaned[0:i])
+        else:
+            V1, ratios = string_matching(cleaned[0:i])
         V2 = statistics.mean(ratios)
         V3 = statistics.stdev(ratios)
+
+        sentiment_polarities = sentiment_polarity(cleaned[0:i])
+        V4 = statistics.mean(sentiment_polarities)
+        V5 = statistics.stdev(sentiment_polarities)
 
         V1_all.append(V1)
         V2_all.append(V2)
         V3_all.append(V3)
-    
-    data = {"V1": V1_all, "V2": V2_all, "V3": V3_all}
+        V4_all.append(V4)
+        V5_all.append(V5)
+
+    data = {"V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all}
     return data
 
-def on_button_click():
+def on_search_click():
     query1 = entry1.get()
     query2 = entry2.get()
+    query2_formatted = f"{query1} site:{query2}"
     data1 = generate_data(100, query1)
-    data2 = generate_data(100, query2)
+    data2 = generate_data(100, query2_formatted)
 
-    for i in range(1,4):
+    for i in range(1,6):
         data = [data1[f"V{i}"], data2[f"V{i}"]]
         tab = ttk.Frame(root)
         notebook.add(tab, text=f"V{i}")
-        create_plots(tab, data, title=f"Title {i}")
+        title1 = f"V{i} - '{query1}'"
+        title2 = f"V{i} - '{query2_formatted}'"
+        xlabel = "Number of snippets"
+        if i == 1:
+            ylabel = "Num of 100% matches"
+        elif i == 2:
+            ylabel = "Average string match ratio %"    
+        elif i == 3:
+            ylabel = "Standard deviation for string match ratio"    
+        elif i == 4:
+            ylabel = "Average sentiment polarity"  
+        elif i == 5:
+            ylabel = "Standard deviation for sentiment polarity"  
+        create_plots(tab, data, title1, title2, xlabel, ylabel)
 
     
     
@@ -157,16 +200,28 @@ def on_button_click():
 
 root = tk.Tk()
 root.title("NLP Mining")
-root.geometry("1000x600")
+root.attributes('-fullscreen', True)
 notebook = ttk.Notebook(root)
 notebook.pack(fill=tk.BOTH, expand=True)
 
+label1 = tk.Label(root, text="Search term")
+label1.pack()
 entry1 = tk.Entry(root)
+entry1.insert(0, "carbon footprint") 
 entry1.pack()
+label2 = tk.Label(root, text="VS website")
+label2.pack()
 entry2 = tk.Entry(root)
+entry2.insert(0, "www.bbc.com") 
 entry2.pack()
 
-search_button = tk.Button(root, text="Search", command=on_button_click)
+named_entity_checkbox_var = tk.IntVar()
+checkbox1 = tk.Checkbutton(root, text="Use named entities for string matching", variable=named_entity_checkbox_var)
+checkbox1.pack()
+local_data_checkbox_var = tk.IntVar()
+checkbox2 = tk.Checkbutton(root, text="Use local data", variable=local_data_checkbox_var)
+checkbox2.pack()
+search_button = tk.Button(root, text="Search", command=on_search_click)
 search_button.pack()
 
 root.mainloop()

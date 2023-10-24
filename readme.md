@@ -3,7 +3,7 @@
     - Code for this in ```simple_search.py```. I cleaned the result snippets manually, removing beginning dates and trailing dots
 
 
-2. I used WuzzyFuzzy partial ratio string matching on an increasing groups of search result snippets (10, 20, 30...100) to figure out three values. 
+2. I used FuzzyWuzzy partial ratio string matching on an increasing groups of search result snippets (10, 20, 30...100) to figure out three values. 
 	- Code for this in ```fuzz.py```
     - Number of 100% ratio matches
 		![](/img/fig2_1.png)
