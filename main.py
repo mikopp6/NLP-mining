@@ -109,15 +109,35 @@ def create_plots(tab, data, title1, title2, xlabel, ylabel):
         canvas = FigureCanvasTkAgg(fig, master=tab)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
+
+def create_combined_plot(tab, data, title, xlabel, ylabel):
+    fig = Figure(figsize=(6, 4), dpi=100)  # Larger figure size
+    ax = fig.add_subplot(111)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    for plot_num in range(2):
+        y = data[plot_num]
+        x = [i for i in range(10, 101, 10)]
+        ax.plot(x, y, label=f"Data {plot_num + 1}")
+
+    ax.set_xticks(x)
+    ax.legend()
+
+    canvas = FigureCanvasTkAgg(fig, master=tab)
+    canvas_widget = canvas.get_tk_widget()
+    canvas_widget.pack(fill=tk.BOTH, expand=True)
+
         
 def generate_data(num_results, query):
     snippets = []
     
     if local_data_checkbox_var.get():
         if "site" in query:
-            filename = "snippets2.txt"
+            filename = "saved_search_data/snippets2.txt"
         else:
-            filename = "snippets1.txt"
+            filename = "saved_search_data/snippets1.txt"
         
         data = load_from_file(filename)
     else:
@@ -178,6 +198,7 @@ def on_search_click():
         data = [data1[f"V{i}"], data2[f"V{i}"]]
         tab = ttk.Frame(root)
         notebook.add(tab, text=f"V{i}")
+        title = f"V{i} - {query1} vs {query2_formatted}"
         title1 = f"V{i} - '{query1}'"
         title2 = f"V{i} - '{query2_formatted}'"
         xlabel = "Number of snippets"
@@ -191,8 +212,11 @@ def on_search_click():
             ylabel = "Average sentiment polarity"  
         elif i == 5:
             ylabel = "Standard deviation for sentiment polarity"  
-        create_plots(tab, data, title1, title2, xlabel, ylabel)
-
+        
+        if create_separate_plots_checkbox_var.get():
+            create_plots(tab, data, title1, title2, xlabel, ylabel)
+        else:    
+            create_combined_plot(tab, data, title, xlabel, ylabel)
     
     
 
@@ -200,7 +224,6 @@ def on_search_click():
 
 root = tk.Tk()
 root.title("NLP Mining")
-root.attributes('-fullscreen', True)
 notebook = ttk.Notebook(root)
 notebook.pack(fill=tk.BOTH, expand=True)
 
@@ -218,9 +241,15 @@ entry2.pack()
 named_entity_checkbox_var = tk.IntVar()
 checkbox1 = tk.Checkbutton(root, text="Use named entities for string matching", variable=named_entity_checkbox_var)
 checkbox1.pack()
+
 local_data_checkbox_var = tk.IntVar()
 checkbox2 = tk.Checkbutton(root, text="Use local data", variable=local_data_checkbox_var)
 checkbox2.pack()
+
+create_separate_plots_checkbox_var = tk.IntVar()
+checkbox3 = tk.Checkbutton(root, text="Create separate plots", variable=create_separate_plots_checkbox_var)
+checkbox3.pack()
+
 search_button = tk.Button(root, text="Search", command=on_search_click)
 search_button.pack()
 
