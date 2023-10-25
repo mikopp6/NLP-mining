@@ -1,22 +1,19 @@
 import spacy
 import itertools
-from fuzzywuzzy import fuzz, process
+from fuzzywuzzy import fuzz
 from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from wordcloud import WordCloud
+from wordcloud import WordCloud, STOPWORDS
 from googlesearch import search
 import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
-import numpy as np
 import statistics
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from textblob import TextBlob
+from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 
-
-import pandas as pd
+REMOVE_LIST = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 def simple_search(query, num_results):
     results = search(query, num_results=num_results, advanced=True)
@@ -29,7 +26,7 @@ def clean_text(snippets):
         tokenized = word_tokenize(snippet)
         word_array = []
         for word in tokenized:
-            if word.isalpha():
+            if word.isalpha() and word.lower() not in REMOVE_LIST:
                 word_array.append(word)
         cleaned_string = ' '.join([str(word) for word in word_array])
         cleaned_snippets.append(cleaned_string)
@@ -65,17 +62,21 @@ def string_matching(snippets):
     return exact_matches, ratios
 
 # Sentiment polarity
-def sentiment_polarity(snippets):
+def sentiment_polarity(snippets, textblobber):
     sentiment_polarities = []
     for snippet in snippets:
-        polarity = TextBlob(snippet, analyzer=NaiveBayesAnalyzer()).polarity
+        polarity = textblobber(snippet).polarity
         sentiment_polarities.append(polarity)
     return sentiment_polarities
 
 # Wordcloud
-def create_wordcloud(snippets):
-    cloud = WordCloud(collocations=False, scale=4).generate(snippets).to_image()
-    return cloud
+def create_wordcloud(snippets, extra_stopwords):
+
+    text = " ".join(snippets)
+    stopwords = extra_stopwords + list(STOPWORDS)
+
+    wordcloud = WordCloud(stopwords=stopwords, width=800, height=600).generate(text)
+    return wordcloud
 
 # Named entity string matching
 def named_entity_matching(snippets):
@@ -129,8 +130,21 @@ def create_combined_plot(tab, data, title, xlabel, ylabel):
     canvas_widget = canvas.get_tk_widget()
     canvas_widget.pack(fill=tk.BOTH, expand=True)
 
+def plot_wordclouds(tab, data, title1, title2):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    for plot_num in range(2):
+        axes[plot_num].imshow(data[plot_num], interpolation='bilinear')
+        if plot_num == 0:
+            axes[plot_num].set_title(title1)
+        elif plot_num == 1:
+            axes[plot_num].set_title(title2)
+        axes[plot_num].axis("off")
+
+    canvas = FigureCanvasTkAgg(fig, master=tab)
+    canvas_widget = canvas.get_tk_widget()
+    canvas_widget.pack(fill=tk.BOTH, expand=True)
         
-def generate_data(num_results, query):
+def generate_data(num_results, query, textblobber):
     snippets = []
     
     if local_data_checkbox_var.get():
@@ -159,6 +173,8 @@ def generate_data(num_results, query):
     V3_all = []
     V4_all = []
     V5_all = []
+    extra_stopwords = query.split()
+    wordcloud = create_wordcloud(cleaned, extra_stopwords)
 
     for i in range(10,110,10):
         V1 = 0
@@ -174,7 +190,7 @@ def generate_data(num_results, query):
         V2 = statistics.mean(ratios)
         V3 = statistics.stdev(ratios)
 
-        sentiment_polarities = sentiment_polarity(cleaned[0:i])
+        sentiment_polarities = sentiment_polarity(cleaned[0:i], textblobber)
         V4 = statistics.mean(sentiment_polarities)
         V5 = statistics.stdev(sentiment_polarities)
 
@@ -184,23 +200,26 @@ def generate_data(num_results, query):
         V4_all.append(V4)
         V5_all.append(V5)
 
-    data = {"V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all}
+    data = {"V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all, "V6": wordcloud}
     return data
 
-def on_search_click():
-    query1 = entry1.get()
-    query2 = entry2.get()
-    query2_formatted = f"{query1} site:{query2}"
-    data1 = generate_data(100, query1)
-    data2 = generate_data(100, query2_formatted)
+def start_analysis(query1, query2):
+    # Create textblobber here to increase performance
+    textblobber = Blobber(analyzer=NaiveBayesAnalyzer())
 
-    for i in range(1,6):
-        data = [data1[f"V{i}"], data2[f"V{i}"]]
+    data1 = generate_data(100, query1, textblobber)
+    data2 = generate_data(100, query2, textblobber)
+
+    for i in range(1,7):
         tab = ttk.Frame(root)
         notebook.add(tab, text=f"V{i}")
-        title = f"V{i} - {query1} vs {query2_formatted}"
+        data = [data1[f"V{i}"], data2[f"V{i}"]]
+        title = f"V{i} - {query1} vs {query2}"
         title1 = f"V{i} - '{query1}'"
-        title2 = f"V{i} - '{query2_formatted}'"
+        title2 = f"V{i} - '{query2}'"
+        if i == 6:
+            plot_wordclouds(tab, data, title1, title2)
+            break
         xlabel = "Number of snippets"
         if i == 1:
             ylabel = "Num of 100% matches"
@@ -217,10 +236,13 @@ def on_search_click():
             create_plots(tab, data, title1, title2, xlabel, ylabel)
         else:    
             create_combined_plot(tab, data, title, xlabel, ylabel)
-    
-    
 
-          
+def on_search_click():
+    query1 = entry1.get()
+    query2 = entry2.get()
+    query2_formatted = f"{query1} site:{query2}"
+    start_analysis(query1, query2_formatted)
+
 
 root = tk.Tk()
 root.title("NLP Mining")
