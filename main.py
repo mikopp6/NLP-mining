@@ -6,12 +6,19 @@ from wordcloud import WordCloud, STOPWORDS
 from googlesearch import search
 import tkinter as tk
 from tkinter import ttk
-import matplotlib.pyplot as plt
 import statistics
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
+
 from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
+
+
+PLOT_TYPE = "error"
+# PLOT_TYPE = "box"
+# PLOT_TYPE = "line"
 
 REMOVE_LIST = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -71,10 +78,8 @@ def sentiment_polarity(snippets, textblobber):
 
 # Wordcloud
 def create_wordcloud(snippets, extra_stopwords):
-
     text = " ".join(snippets)
     stopwords = extra_stopwords + list(STOPWORDS)
-
     wordcloud = WordCloud(stopwords=stopwords, width=800, height=600).generate(text)
     return wordcloud
 
@@ -112,7 +117,7 @@ def create_plots(tab, data, title1, title2, xlabel, ylabel):
         canvas_widget.pack(fill=tk.BOTH, expand=True)
 
 def create_combined_plot(tab, data, title, xlabel, ylabel):
-    fig = Figure(figsize=(6, 4), dpi=100)  # Larger figure size
+    fig = Figure(figsize=(6, 4), dpi=100)
     ax = fig.add_subplot(111)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
@@ -129,6 +134,33 @@ def create_combined_plot(tab, data, title, xlabel, ylabel):
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas_widget = canvas.get_tk_widget()
     canvas_widget.pack(fill=tk.BOTH, expand=True)
+
+def create_boxplots(tab, data, title1, title2):
+    for plot_num in range(2):
+        fig = Figure(figsize=(6, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.boxplot(data[plot_num])
+        canvas = FigureCanvasTkAgg(fig, master=tab)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.pack(fill=tk.BOTH, expand=True)
+   
+def create_errorbars(tab, means, errors, yticks, title1, title2):
+    for plot_num in range(2):
+        fig = Figure(figsize=(6, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        y = means[plot_num]
+        x = [i for i in range(10, 101, 10)]
+        error = errors[plot_num]
+        ax.errorbar(x, y, error, ecolor="red")
+        if plot_num == 0:
+            ax.set_title(title1)
+        elif plot_num == 1:
+            ax.set_title(title2)
+        ax.set_xticks(x)
+        ax.set_yticks(yticks)
+        canvas = FigureCanvasTkAgg(fig, master=tab)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.pack(fill=tk.BOTH, expand=True)
 
 def plot_wordclouds(tab, data, title1, title2):
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -168,6 +200,8 @@ def generate_data(num_results, query, textblobber):
 
     cleaned = clean_text(snippets)
 
+    string_match_ratios_all = []
+    sentiment_polarities_all = []
     V1_all = []
     V2_all = []
     V3_all = []
@@ -182,6 +216,7 @@ def generate_data(num_results, query, textblobber):
         V3 = 0
         V4 = 0
         V5 = 0
+        ratios = []
 
         if named_entity_checkbox_var.get():
             V1, ratios = named_entity_matching(cleaned[0:i])
@@ -194,13 +229,15 @@ def generate_data(num_results, query, textblobber):
         V4 = statistics.mean(sentiment_polarities)
         V5 = statistics.stdev(sentiment_polarities)
 
+        string_match_ratios_all.append(ratios)
+        sentiment_polarities_all.append(sentiment_polarities)
         V1_all.append(V1)
         V2_all.append(V2)
         V3_all.append(V3)
         V4_all.append(V4)
         V5_all.append(V5)
 
-    data = {"V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all, "V6": wordcloud}
+    data = {"sm": string_match_ratios_all, "sp": sentiment_polarities_all, "V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all, "V6": wordcloud}
     return data
 
 def start_analysis(query1, query2):
@@ -210,32 +247,71 @@ def start_analysis(query1, query2):
     data1 = generate_data(100, query1, textblobber)
     data2 = generate_data(100, query2, textblobber)
 
-    for i in range(1,7):
+    print("data generated")
+
+    if PLOT_TYPE == "error":
         tab = ttk.Frame(root)
-        notebook.add(tab, text=f"V{i}")
-        data = [data1[f"V{i}"], data2[f"V{i}"]]
-        title = f"V{i} - {query1} vs {query2}"
-        title1 = f"V{i} - '{query1}'"
-        title2 = f"V{i} - '{query2}'"
-        if i == 6:
-            plot_wordclouds(tab, data, title1, title2)
-            break
-        xlabel = "Number of snippets"
-        if i == 1:
-            ylabel = "Num of 100% matches"
-        elif i == 2:
-            ylabel = "Average string match ratio %"    
-        elif i == 3:
-            ylabel = "Standard deviation for string match ratio"    
-        elif i == 4:
-            ylabel = "Average sentiment polarity"  
-        elif i == 5:
-            ylabel = "Standard deviation for sentiment polarity"  
-        
-        if create_separate_plots_checkbox_var.get():
-            create_plots(tab, data, title1, title2, xlabel, ylabel)
-        else:    
+        notebook.add(tab, text="String matching")
+        means = [data1[f"V{2}"], data2[f"V{2}"]]
+        errors = [data1[f"V{3}"], data2[f"V{3}"]]
+        title1 = f"String match percentage - '{query1}'"
+        title2 = f"String match percentage - '{query2}'"
+        create_errorbars(tab, means, errors, range(0,110,10), title1, title2)
+
+        tab = ttk.Frame(root)
+        notebook.add(tab, text="Sentiment polarities")
+        means = [data1[f"V{4}"], data2[f"V{4}"]]
+        errors = [data1[f"V{5}"], data2[f"V{5}"]]
+        title1 = f"Sentiment polarity - '{query1}'"
+        title2 = f"Sentiment polarity - '{query2}'"
+        create_errorbars(tab, means, errors, [(x/10) for x in range(-10, 11, 1)], title1, title2)
+
+        tab = ttk.Frame(root)
+        notebook.add(tab, text="Wordclouds")
+        data = [data1["V6"], data2["V6"]]
+        title1 = f"'{query1}'"
+        title2 = f"'{query2}'"
+        plot_wordclouds(tab, data, title1, title2)
+    elif PLOT_TYPE=="line":
+        for i in range(1,7):
+            tab = ttk.Frame(root)
+            notebook.add(tab, text=f"V{i}")
+            data = [data1[f"V{i}"], data2[f"V{i}"]]
+            title = f"V{i} - {query1} vs {query2}"
+            title1 = f"V{i} - '{query1}'"
+            title2 = f"V{i} - '{query2}'"
+            if i == 6:
+                plot_wordclouds(tab, data, title1, title2)
+                break
+            xlabel = "Number of snippets"
+            if i == 1:
+                ylabel = "Num of 100% matches"
+            elif i == 2:
+                ylabel = "Average string match ratio %"    
+            elif i == 3:
+                ylabel = "Standard deviation for string match ratio"    
+            elif i == 4:
+                ylabel = "Average sentiment polarity"  
+            elif i == 5:
+                ylabel = "Standard deviation for sentiment polarity"  
+
             create_combined_plot(tab, data, title, xlabel, ylabel)
+    
+    elif PLOT_TYPE == "box":
+        tab = ttk.Frame(root)
+        notebook.add(tab, text="String matching")
+        data = [data1["sm"], data2["sm"]]
+        create_boxplots(tab, data, "first", "second")
+
+        tab = ttk.Frame(root)
+        notebook.add(tab, text="Sentiment polarities")
+        data = [data1["sp"], data2["sp"]]
+        create_boxplots(tab, data, "first", "second")
+
+        tab = ttk.Frame(root)
+        notebook.add(tab, text="Wordclouds")
+        data = [data1["V6"], data2["V6"]]
+        plot_wordclouds(tab, data, "first", "second")
 
 def on_search_click():
     query1 = entry1.get()
@@ -261,16 +337,12 @@ entry2.insert(0, "www.bbc.com")
 entry2.pack()
 
 named_entity_checkbox_var = tk.IntVar()
-checkbox1 = tk.Checkbutton(root, text="Use named entities for string matching", variable=named_entity_checkbox_var)
+checkbox1 = tk.Checkbutton(root, text="Named entities for string matching", variable=named_entity_checkbox_var)
 checkbox1.pack()
 
 local_data_checkbox_var = tk.IntVar()
-checkbox2 = tk.Checkbutton(root, text="Use local data", variable=local_data_checkbox_var)
+checkbox2 = tk.Checkbutton(root, text="Local data", variable=local_data_checkbox_var)
 checkbox2.pack()
-
-create_separate_plots_checkbox_var = tk.IntVar()
-checkbox3 = tk.Checkbutton(root, text="Create separate plots", variable=create_separate_plots_checkbox_var)
-checkbox3.pack()
 
 search_button = tk.Button(root, text="Search", command=on_search_click)
 search_button.pack()
