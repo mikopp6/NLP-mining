@@ -144,7 +144,7 @@ def create_boxplots(tab, data, title1, title2):
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
    
-def create_errorbars(tab, means, errors, yticks, title1, title2):
+def create_errorbars(tab, means, errors, yticks, title1, title2, ylabel):
     for plot_num in range(2):
         fig = Figure(figsize=(6, 4), dpi=100)
         ax = fig.add_subplot(111)
@@ -158,6 +158,8 @@ def create_errorbars(tab, means, errors, yticks, title1, title2):
             ax.set_title(title2)
         ax.set_xticks(x)
         ax.set_yticks(yticks)
+        ax.set_xlabel("Number of snippets")
+        ax.set_ylabel(ylabel)
         canvas = FigureCanvasTkAgg(fig, master=tab)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
@@ -256,7 +258,8 @@ def start_analysis(query1, query2):
         errors = [data1[f"V{3}"], data2[f"V{3}"]]
         title1 = f"String match percentage - '{query1}'"
         title2 = f"String match percentage - '{query2}'"
-        create_errorbars(tab, means, errors, range(0,110,10), title1, title2)
+        ylabel = "Average string match score"
+        create_errorbars(tab, means, errors, range(0,110,10), title1, title2, ylabel)
 
         tab = ttk.Frame(root)
         notebook.add(tab, text="Sentiment polarities")
@@ -264,7 +267,8 @@ def start_analysis(query1, query2):
         errors = [data1[f"V{5}"], data2[f"V{5}"]]
         title1 = f"Sentiment polarity - '{query1}'"
         title2 = f"Sentiment polarity - '{query2}'"
-        create_errorbars(tab, means, errors, [(x/10) for x in range(-10, 11, 1)], title1, title2)
+        ylabel = "Average sentiment polarity"
+        create_errorbars(tab, means, errors, [(x/10) for x in range(-10, 11, 1)], title1, title2, ylabel)
 
         tab = ttk.Frame(root)
         notebook.add(tab, text="Wordclouds")
