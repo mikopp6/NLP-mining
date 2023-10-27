@@ -19,10 +19,11 @@ from textblob.sentiments import NaiveBayesAnalyzer
 
 REMOVE_LIST = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
-def simple_search(query, num_results):
-    results = search(query, num_results=num_results, advanced=True)
-    return results
+#
+# Utility functions
+#
 
+# Clean text, tokenize into words
 def clean_text(snippets):
     cleaned_snippets = []
 
@@ -37,21 +38,36 @@ def clean_text(snippets):
         
     return cleaned_snippets
 
-
-
-# Save
+# Save snippets to file
 def save_to_file(snippets, filename):
     with open(filename, "w", encoding="utf-8") as file:
         for snippet in list(snippets):
             file.write(snippet.description + "\n")
 
-# Load
+# Load snippets from file
 def load_from_file(filename):
     with open(filename, "r", encoding='utf-8') as file:
         snippets = file.read().splitlines()
     return snippets
 
-# String matching
+
+def on_search_click():
+    query1 = entry1.get()
+    query2 = entry2.get()
+    query2_formatted = f"{query1} site:{query2}"
+    start_analysis(query1, query2_formatted)
+
+
+#
+# Task functions
+#
+
+# Task 1, Snippet retrieval
+def simple_search(query, num_results):
+    results = search(query, num_results=num_results, advanced=True)
+    return results
+
+# Task 2 & 6, String matching with FuzzyWuzzy
 def string_matching(snippets):
     unique_index_pair_list = itertools.combinations(range(0,len(snippets)), 2)
 
@@ -65,7 +81,7 @@ def string_matching(snippets):
         
     return exact_matches, ratios
 
-# Sentiment polarity
+# Task 3 & 6, Sentiment polarity analysis with TextBlob NaiveBayesAnalyzer
 def sentiment_polarity(snippets, textblobber):
     sentiment_polarities = []
     for snippet in snippets:
@@ -73,14 +89,7 @@ def sentiment_polarity(snippets, textblobber):
         sentiment_polarities.append(polarity)
     return sentiment_polarities
 
-# Wordcloud
-def create_wordcloud(snippets, extra_stopwords):
-    text = " ".join(snippets)
-    stopwords = extra_stopwords + list(STOPWORDS)
-    wordcloud = WordCloud(stopwords=stopwords, width=800, height=600).generate(text)
-    return wordcloud
-
-# Named entity string matching
+# Task 4 & 6, Named entity string matching
 def named_entity_matching(snippets):
     nlp = spacy.load("en_core_web_sm")
     all_named_entities = []
@@ -94,25 +103,19 @@ def named_entity_matching(snippets):
 
     return string_matching(all_named_entities)
 
-def create_plots(tab, data, title1, title2, xlabel, ylabel):
-    for plot_num in range(2):
-        fig = Figure(figsize=(3, 2), dpi=100)
-        ax = fig.add_subplot(111)
-        if plot_num == 0:
-            ax.set_title(title1)
-        elif plot_num == 1:
-            ax.set_title(title2)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        y = data[plot_num]
-        x = [i for i in range(10, 101, 10)]
-        ax.set_xticks(x)
-        ax.plot(x, y, label="Data")
-        ax.legend()
-        canvas = FigureCanvasTkAgg(fig, master=tab)
-        canvas_widget = canvas.get_tk_widget()
-        canvas_widget.pack(fill=tk.BOTH, expand=True)
+# Task 5 & 7, Wordcloud
+def create_wordcloud(snippets, extra_stopwords):
+    text = " ".join(snippets)
+    stopwords = extra_stopwords + list(STOPWORDS)
+    wordcloud = WordCloud(stopwords=stopwords, width=800, height=600).generate(text)
+    return wordcloud
 
+#
+# Plotting functions
+#
+
+
+# Creates combined line plot, packs it into tab
 def create_combined_plot(tab, data, title, xlabel, ylabel):
     fig = Figure(figsize=(6, 4), dpi=100)
     ax = fig.add_subplot(111)
@@ -132,6 +135,7 @@ def create_combined_plot(tab, data, title, xlabel, ylabel):
     canvas_widget = canvas.get_tk_widget()
     canvas_widget.pack(fill=tk.BOTH, expand=True)
 
+# Creates box plots, packs them into tab
 def create_boxplots(tab, data, title1, title2):
     for plot_num in range(2):
         fig = Figure(figsize=(6, 4), dpi=100)
@@ -144,7 +148,8 @@ def create_boxplots(tab, data, title1, title2):
         canvas = FigureCanvasTkAgg(fig, master=tab)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
-   
+
+# Creates error plot, packs them into tab
 def create_errorbars(tab, means, errors, yticks, title1, title2, ylabel):
     for plot_num in range(2):
         fig = Figure(figsize=(6, 4), dpi=100)
@@ -165,6 +170,7 @@ def create_errorbars(tab, means, errors, yticks, title1, title2, ylabel):
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
 
+# Plots wordclouds, packs them into tab
 def plot_wordclouds(tab, data, title1, title2):
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
     for plot_num in range(2):
@@ -179,6 +185,12 @@ def plot_wordclouds(tab, data, title1, title2):
     canvas_widget = canvas.get_tk_widget()
     canvas_widget.pack(fill=tk.BOTH, expand=True)
         
+
+#
+# Program functions
+#
+
+# Generates data to be shown in GUI 
 def generate_data(num_results, query, textblobber):
     snippets = []
     
@@ -243,6 +255,7 @@ def generate_data(num_results, query, textblobber):
     data = {"sm": string_match_ratios_all, "sp": sentiment_polarities_all, "V1": V1_all, "V2": V2_all, "V3": V3_all, "V4": V4_all, "V5": V5_all, "V6": wordcloud}
     return data
 
+# The main part of the program, retrieves data and plots according to user choice
 def start_analysis(query1, query2):
     # Create textblobber here to increase performance
     textblobber = Blobber(analyzer=NaiveBayesAnalyzer())
@@ -323,13 +336,9 @@ def start_analysis(query1, query2):
         title2 = f"'{query2}'"
         plot_wordclouds(tab, data, title1, title2)
 
-def on_search_click():
-    query1 = entry1.get()
-    query2 = entry2.get()
-    query2_formatted = f"{query1} site:{query2}"
-    start_analysis(query1, query2_formatted)
 
 
+# GUI code
 root = tk.Tk()
 root.title("NLP Mining")
 notebook = ttk.Notebook(root)
@@ -359,7 +368,6 @@ tk.Radiobutton(frame, text="Error plot", variable=selected_plot_type_var, value=
 tk.Radiobutton(frame, text="Box plot", variable=selected_plot_type_var, value="box").pack(side="left")
 tk.Radiobutton(frame, text="Line plot", variable=selected_plot_type_var, value="line").pack(side="left")
 
-# Place the "Search" button outside the 'frame' at the bottom
 tk.Button(root, text="Search", command=on_search_click).pack(side="bottom")
 
 root.mainloop()
