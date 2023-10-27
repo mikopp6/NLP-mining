@@ -10,15 +10,12 @@ import statistics
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from matplotlib.ticker import MaxNLocator
 
 from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 
 
-PLOT_TYPE = "error"
-# PLOT_TYPE = "box"
-# PLOT_TYPE = "line"
+
 
 REMOVE_LIST = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -140,6 +137,10 @@ def create_boxplots(tab, data, title1, title2):
         fig = Figure(figsize=(6, 4), dpi=100)
         ax = fig.add_subplot(111)
         ax.boxplot(data[plot_num])
+        if plot_num == 0:
+            ax.set_title(title1)
+        elif plot_num == 1:
+            ax.set_title(title2)
         canvas = FigureCanvasTkAgg(fig, master=tab)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
@@ -251,7 +252,7 @@ def start_analysis(query1, query2):
 
     print("data generated")
 
-    if PLOT_TYPE == "error":
+    if selected_plot_type_var.get() == "error":
         tab = ttk.Frame(root)
         notebook.add(tab, text="String matching")
         means = [data1[f"V{2}"], data2[f"V{2}"]]
@@ -276,7 +277,7 @@ def start_analysis(query1, query2):
         title1 = f"'{query1}'"
         title2 = f"'{query2}'"
         plot_wordclouds(tab, data, title1, title2)
-    elif PLOT_TYPE=="line":
+    elif selected_plot_type_var.get()=="line":
         for i in range(1,7):
             tab = ttk.Frame(root)
             notebook.add(tab, text=f"V{i}")
@@ -300,22 +301,27 @@ def start_analysis(query1, query2):
                 ylabel = "Standard deviation for sentiment polarity"  
 
             create_combined_plot(tab, data, title, xlabel, ylabel)
-    
-    elif PLOT_TYPE == "box":
+    elif selected_plot_type_var.get() == "box":
         tab = ttk.Frame(root)
         notebook.add(tab, text="String matching")
         data = [data1["sm"], data2["sm"]]
-        create_boxplots(tab, data, "first", "second")
+        title1 = f"String match percentage - '{query1}'"
+        title2 = f"String match percentage - '{query2}'"
+        create_boxplots(tab, data, title1, title2)
 
         tab = ttk.Frame(root)
         notebook.add(tab, text="Sentiment polarities")
         data = [data1["sp"], data2["sp"]]
-        create_boxplots(tab, data, "first", "second")
+        title1 = f"Sentiment polarity - '{query1}'"
+        title2 = f"Sentiment polarity - '{query2}'"
+        create_boxplots(tab, data, title1, title2)
 
         tab = ttk.Frame(root)
         notebook.add(tab, text="Wordclouds")
         data = [data1["V6"], data2["V6"]]
-        plot_wordclouds(tab, data, "first", "second")
+        title1 = f"'{query1}'"
+        title2 = f"'{query2}'"
+        plot_wordclouds(tab, data, title1, title2)
 
 def on_search_click():
     query1 = entry1.get()
@@ -329,27 +335,32 @@ root.title("NLP Mining")
 notebook = ttk.Notebook(root)
 notebook.pack(fill=tk.BOTH, expand=True)
 
-label1 = tk.Label(root, text="Search term")
-label1.pack()
-entry1 = tk.Entry(root)
+frame = tk.Frame(root)
+frame.pack(padx=10, pady=10)
+
+
+tk.Label(frame, text="Search term").pack()
+entry1 = tk.Entry(frame)
 entry1.insert(0, "carbon footprint") 
 entry1.pack()
-label2 = tk.Label(root, text="VS website")
-label2.pack()
-entry2 = tk.Entry(root)
+tk.Label(frame, text="VS website").pack()
+entry2 = tk.Entry(frame)
 entry2.insert(0, "www.bbc.com") 
 entry2.pack()
 
 named_entity_checkbox_var = tk.IntVar()
-checkbox1 = tk.Checkbutton(root, text="Named entities for string matching", variable=named_entity_checkbox_var)
-checkbox1.pack()
+tk.Checkbutton(frame, text="Named entities", variable=named_entity_checkbox_var).pack()
 
 local_data_checkbox_var = tk.IntVar()
-checkbox2 = tk.Checkbutton(root, text="Local data", variable=local_data_checkbox_var)
-checkbox2.pack()
+tk.Checkbutton(frame, text="Local data", variable=local_data_checkbox_var).pack()
 
-search_button = tk.Button(root, text="Search", command=on_search_click)
-search_button.pack()
+selected_plot_type_var = tk.StringVar(value="error")
+tk.Radiobutton(frame, text="Error plot", variable=selected_plot_type_var, value="error").pack(side="left")
+tk.Radiobutton(frame, text="Box plot", variable=selected_plot_type_var, value="box").pack(side="left")
+tk.Radiobutton(frame, text="Line plot", variable=selected_plot_type_var, value="line").pack(side="left")
+
+# Place the "Search" button outside the 'frame' at the bottom
+tk.Button(root, text="Search", command=on_search_click).pack(side="bottom")
 
 root.mainloop()
 
