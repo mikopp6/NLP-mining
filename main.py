@@ -10,7 +10,7 @@ import statistics
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-
+import re
 from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 
@@ -40,9 +40,9 @@ def clean_text(snippets):
 
 # Save snippets to file
 def save_to_file(snippets, filename):
-    with open(filename, "w", encoding="utf-8") as file:
+    with open(f"save/snippets {re.sub('[:.]', '_', filename)}.txt", "w", encoding="utf-8") as file:
         for snippet in list(snippets):
-            file.write(snippet.description + "\n")
+            file.write(snippet + "\n")
 
 # Load snippets from file
 def load_from_file(filename):
@@ -104,10 +104,15 @@ def named_entity_matching(snippets):
     return string_matching(all_named_entities)
 
 # Task 5 & 7, Wordcloud
-def create_wordcloud(snippets, extra_stopwords):
+def create_wordcloud(snippets, query):
+    extra_stopwords = query.split()
     text = " ".join(snippets)
     stopwords = extra_stopwords + list(STOPWORDS)
-    wordcloud = WordCloud(stopwords=stopwords, width=800, height=600).generate(text)
+    wordcloud = WordCloud(stopwords=stopwords, width=800, height=600, background_color="white").generate(text)
+
+    if save_data_checkbox_var.get():
+        wordcloud.to_file(f"save/wordcloud {re.sub('[:.]', '_', query)}.png")
+
     return wordcloud
 
 #
@@ -116,7 +121,7 @@ def create_wordcloud(snippets, extra_stopwords):
 
 
 # Creates combined line plot, packs it into tab
-def create_combined_plot(tab, data, title, xlabel, ylabel):
+def create_combined_plot(tab, data, title, xlabel, ylabel, query1, query2):
     fig = Figure(figsize=(6, 4), dpi=100)
     ax = fig.add_subplot(111)
     ax.set_title(title)
@@ -129,7 +134,9 @@ def create_combined_plot(tab, data, title, xlabel, ylabel):
         ax.plot(x, y, label=f"Data {plot_num + 1}")
 
     ax.set_xticks(x)
-    ax.legend()
+    ax.legend(labels=[query1, query2])
+    if save_data_checkbox_var.get():
+        fig.savefig(f"save/{re.sub('[:.]', '_', title)}.png")
 
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas_widget = canvas.get_tk_widget()
@@ -158,14 +165,18 @@ def create_errorbars(tab, means, errors, yticks, title1, title2, ylabel):
         x = [i for i in range(10, 101, 10)]
         error = errors[plot_num]
         ax.errorbar(x, y, error, ecolor="red")
-        if plot_num == 0:
-            ax.set_title(title1)
-        elif plot_num == 1:
-            ax.set_title(title2)
         ax.set_xticks(x)
         ax.set_yticks(yticks)
         ax.set_xlabel("Number of snippets")
         ax.set_ylabel(ylabel)
+        if plot_num == 0:
+            ax.set_title(title1)
+            if save_data_checkbox_var.get():
+                fig.savefig(f"save/{re.sub('[:.]', '_', title1)}.png")
+        elif plot_num == 1:
+            ax.set_title(title2)
+            if save_data_checkbox_var.get():
+                fig.savefig(f"save/{re.sub('[:.]', '_', title2)}.png")
         canvas = FigureCanvasTkAgg(fig, master=tab)
         canvas_widget = canvas.get_tk_widget()
         canvas_widget.pack(fill=tk.BOTH, expand=True)
@@ -205,6 +216,7 @@ def generate_data(num_results, query, textblobber):
         print("Using search data")
         data = simple_search(query, num_results)
 
+
     for i, result in enumerate(data):
         if local_data_checkbox_var.get():
             snippets.append(result)
@@ -213,6 +225,9 @@ def generate_data(num_results, query, textblobber):
         if i >= num_results-1:
             break
 
+    if save_data_checkbox_var.get():
+        save_to_file(snippets, query)
+    
     cleaned = clean_text(snippets)
 
     string_match_ratios_all = []
@@ -222,8 +237,7 @@ def generate_data(num_results, query, textblobber):
     V3_all = []
     V4_all = []
     V5_all = []
-    extra_stopwords = query.split()
-    wordcloud = create_wordcloud(cleaned, extra_stopwords)
+    wordcloud = create_wordcloud(cleaned, query)
 
     for i in range(10,110,10):
         V1 = 0
@@ -267,11 +281,19 @@ def start_analysis(query1, query2):
 
     if selected_plot_type_var.get() == "error":
         tab = ttk.Frame(root)
+        notebook.add(tab, text="Exact matches")
+        data = [data1[f"V{1}"], data2[f"V{1}"]]
+        title = f"V1 - {query1} vs {query2}"
+        ylabel = "Num of 100% matches"
+        xlabel = "Number of snippets"
+        create_combined_plot(tab, data, title, xlabel, ylabel, query1, query2)
+
+        tab = ttk.Frame(root)
         notebook.add(tab, text="String matching")
         means = [data1[f"V{2}"], data2[f"V{2}"]]
         errors = [data1[f"V{3}"], data2[f"V{3}"]]
-        title1 = f"String match percentage - '{query1}'"
-        title2 = f"String match percentage - '{query2}'"
+        title1 = f"V2 & V3 String match percentage - '{query1}'"
+        title2 = f"V2 & V3 String match percentage - '{query2}'"
         ylabel = "Average string match score"
         create_errorbars(tab, means, errors, range(0,110,10), title1, title2, ylabel)
 
@@ -279,8 +301,8 @@ def start_analysis(query1, query2):
         notebook.add(tab, text="Sentiment polarities")
         means = [data1[f"V{4}"], data2[f"V{4}"]]
         errors = [data1[f"V{5}"], data2[f"V{5}"]]
-        title1 = f"Sentiment polarity - '{query1}'"
-        title2 = f"Sentiment polarity - '{query2}'"
+        title1 = f"V4 & V5 Sentiment polarity - '{query1}'"
+        title2 = f"V4 & V5 Sentiment polarity - '{query2}'"
         ylabel = "Average sentiment polarity"
         create_errorbars(tab, means, errors, [(x/10) for x in range(-10, 11, 1)], title1, title2, ylabel)
 
@@ -313,7 +335,7 @@ def start_analysis(query1, query2):
             elif i == 5:
                 ylabel = "Standard deviation for sentiment polarity"  
 
-            create_combined_plot(tab, data, title, xlabel, ylabel)
+            create_combined_plot(tab, data, title, xlabel, ylabel, query1, query2)
     elif selected_plot_type_var.get() == "box":
         tab = ttk.Frame(root)
         notebook.add(tab, text="String matching")
@@ -362,6 +384,9 @@ tk.Checkbutton(frame, text="Named entities", variable=named_entity_checkbox_var)
 
 local_data_checkbox_var = tk.IntVar()
 tk.Checkbutton(frame, text="Local data", variable=local_data_checkbox_var).pack()
+
+save_data_checkbox_var = tk.IntVar()
+tk.Checkbutton(frame, text="Save data to /save", variable=save_data_checkbox_var).pack()
 
 selected_plot_type_var = tk.StringVar(value="error")
 tk.Radiobutton(frame, text="Error plot", variable=selected_plot_type_var, value="error").pack(side="left")
