@@ -1,5 +1,7 @@
 # NLP Project 19 - Mining nature from the web
 
+All project specifications are in `main.py`, and functions have specific task numbers.
+
 ## Installation
 
 0. Used version `Python 3.8.3` and `pip 19.2.3`
